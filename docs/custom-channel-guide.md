@@ -17,3 +17,14 @@ public final class CustomChannel implements NotifyChannel {
     }
 }
 ```
+
+## 등록
+
+```java
+WebhookNotifier notifier = WebhookNotifier.builder()
+    .channel(new CustomChannel())
+    .build();
+
+notifier.send(NotifyMessage.of("배포", "커스텀 채널로 전송"));
+notifier.send("본문만 있는 메시지");
+```
