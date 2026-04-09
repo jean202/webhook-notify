@@ -11,15 +11,24 @@ import org.springframework.context.annotation.EnableAspectJAutoProxy;
 @Configuration
 @EnableAspectJAutoProxy
 @EnableConfigurationProperties(NotifyProperties.class)
-@ConditionalOnProperty(prefix = "webhook-notify.slack", name = "webhook-url")
 public class NotifyAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
     public WebhookNotifier webhookNotifier(NotifyProperties properties) {
-        return WebhookNotifier.builder()
-                .slack(properties.getSlack().getWebhookUrl())
-                .build();
+        WebhookNotifier.Builder builder = WebhookNotifier.builder();
+
+        String slackUrl = properties.getSlack().getWebhookUrl();
+        if (slackUrl != null && !slackUrl.isBlank()) {
+            builder.slack(slackUrl);
+        }
+
+        String discordUrl = properties.getDiscord().getWebhookUrl();
+        if (discordUrl != null && !discordUrl.isBlank()) {
+            builder.discord(discordUrl);
+        }
+
+        return builder.build();
     }
 
     @Bean

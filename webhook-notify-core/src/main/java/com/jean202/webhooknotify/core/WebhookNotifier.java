@@ -1,5 +1,6 @@
 package com.jean202.webhooknotify.core;
 
+import com.jean202.webhooknotify.core.channel.DiscordChannel;
 import com.jean202.webhooknotify.core.channel.SlackChannel;
 import java.util.ArrayList;
 import java.util.List;
@@ -89,6 +90,11 @@ public final class WebhookNotifier {
 
         public Builder slack(String webhookUrl) {
             channels.add(new SlackChannel(webhookUrl));
+            return this;
+        }
+
+        public Builder discord(String webhookUrl) {
+            channels.add(new DiscordChannel(webhookUrl));
             return this;
         }
 
