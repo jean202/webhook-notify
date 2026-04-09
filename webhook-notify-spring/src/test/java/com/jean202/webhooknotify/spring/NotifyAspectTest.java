@@ -1,0 +1,95 @@
+package com.jean202.webhooknotify.spring;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.jean202.webhooknotify.core.WebhookNotifier;
+import com.jean202.webhooknotify.test.FakeChannel;
+import org.junit.jupiter.api.Test;
+import org.springframework.aop.aspectj.annotation.AspectJProxyFactory;
+
+class NotifyAspectTest {
+
+    private final FakeChannel fakeChannel = new FakeChannel();
+    private final WebhookNotifier notifier = WebhookNotifier.builder().channel(fakeChannel).build();
+    private final NotifyAspect aspect = new NotifyAspect(notifier);
+
+    private <T> T proxy(T target) {
+        AspectJProxyFactory factory = new AspectJProxyFactory(target);
+        factory.addAspect(aspect);
+        return factory.getProxy();
+    }
+
+    @Test
+    void sendsNotificationAfterMethodExecution() {
+        SampleService service = proxy(new SampleService());
+        service.simple();
+
+        assertEquals(1, fakeChannel.sentMessages().size());
+        assertEquals("hello", fakeChannel.sentMessages().get(0).body());
+    }
+
+    @Test
+    void rendersTemplateWithReturnValue() {
+        SampleService service = proxy(new SampleService());
+        service.withTemplate();
+
+        assertEquals(1, fakeChannel.sentMessages().size());
+        assertEquals("order 42 completed", fakeChannel.sentMessages().get(0).body());
+    }
+
+    @Test
+    void skipsNotificationWhenConditionIsFalse() {
+        SampleService service = proxy(new SampleService());
+        service.conditionFalse();
+
+        assertTrue(fakeChannel.sentMessages().isEmpty());
+    }
+
+    @Test
+    void sendsNotificationWhenConditionIsTrue() {
+        SampleService service = proxy(new SampleService());
+        service.conditionTrue();
+
+        assertEquals(1, fakeChannel.sentMessages().size());
+    }
+
+    public static class SampleService {
+        @Notify
+        public String simple() {
+            return "hello";
+        }
+
+        @Notify(template = "order #{result.id} completed")
+        public Order withTemplate() {
+            return new Order(42);
+        }
+
+        @Notify(condition = "result.amount > 1000", template = "big order: #{result.amount}")
+        public Order conditionFalse() {
+            return new Order(500);
+        }
+
+        @Notify(condition = "result.amount > 100", template = "big order: #{result.amount}")
+        public Order conditionTrue() {
+            return new Order(500);
+        }
+    }
+
+    public static class Order {
+        private final int id;
+        private final int amount;
+
+        Order(int id) {
+            this(id, id);
+        }
+
+        Order(int id, int amount) {
+            this.id = id;
+            this.amount = amount;
+        }
+
+        public int getId() { return id; }
+        public int getAmount() { return amount; }
+    }
+}

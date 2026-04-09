@@ -28,6 +28,7 @@ subprojects {
     dependencies {
         add("testImplementation", platform("org.junit:junit-bom:5.12.1"))
         add("testImplementation", "org.junit.jupiter:junit-jupiter")
+        add("testRuntimeOnly", "org.junit.platform:junit-platform-launcher")
     }
 
     tasks.withType<Test>().configureEach {

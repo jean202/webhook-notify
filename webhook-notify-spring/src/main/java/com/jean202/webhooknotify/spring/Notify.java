@@ -8,7 +8,9 @@ import java.lang.annotation.Target;
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Notify {
-    String channel() default "slack";
+    String channel() default "";
 
     String template() default "";
+
+    String condition() default "";
 }
