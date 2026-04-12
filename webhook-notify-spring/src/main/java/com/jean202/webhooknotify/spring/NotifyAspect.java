@@ -3,7 +3,10 @@ package com.jean202.webhooknotify.spring;
 import com.jean202.webhooknotify.core.NotifyCondition;
 import com.jean202.webhooknotify.core.NotifyMessage;
 import com.jean202.webhooknotify.core.WebhookNotifier;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -38,7 +41,29 @@ public class NotifyAspect {
             message = NotifyMessage.template(template).var("result", result).build();
         }
 
-        notifier.send(message);
+        Set<String> selectedChannels = parseSelectedChannels(notify.channel());
+        if (selectedChannels.isEmpty()) {
+            notifier.send(message);
+        } else {
+            notifier.sendTo(selectedChannels.stream().toList(), message);
+        }
         return result;
+    }
+
+    private static Set<String> parseSelectedChannels(String channels) {
+        if (channels.isBlank()) {
+            return Set.of();
+        }
+
+        Set<String> selectedChannels = new LinkedHashSet<>();
+        Arrays.stream(channels.split(","))
+            .map(String::trim)
+            .forEach(channel -> {
+                if (channel.isEmpty()) {
+                    throw new IllegalArgumentException("@Notify.channel() must not contain blank channel names");
+                }
+                selectedChannels.add(channel);
+            });
+        return selectedChannels;
     }
 }

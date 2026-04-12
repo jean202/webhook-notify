@@ -106,12 +106,58 @@ class WebhookNotifierTest {
         assertEquals(List.of(), channel.messages());
     }
 
+    @Test
+    void sendToDeliversOnlyRequestedChannels() {
+        RecordingChannel slackPrimary = new RecordingChannel("slack");
+        RecordingChannel discord = new RecordingChannel("discord");
+        RecordingChannel slackSecondary = new RecordingChannel("slack");
+        WebhookNotifier notifier = WebhookNotifier.builder()
+            .channel(slackPrimary)
+            .channel(discord)
+            .channel(slackSecondary)
+            .build();
+
+        notifier.sendTo(List.of(" SLACK "), "deploy completed");
+
+        assertEquals(List.of(NotifyMessage.text("deploy completed")), slackPrimary.messages());
+        assertEquals(List.of(), discord.messages());
+        assertEquals(List.of(NotifyMessage.text("deploy completed")), slackSecondary.messages());
+    }
+
+    @Test
+    void sendToRejectsUnknownChannelsBeforeSending() {
+        RecordingChannel slack = new RecordingChannel("slack");
+        RecordingChannel discord = new RecordingChannel("discord");
+        WebhookNotifier notifier = WebhookNotifier.builder()
+            .channel(slack)
+            .channel(discord)
+            .build();
+
+        IllegalArgumentException exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> notifier.sendTo(List.of("slack", "telegram"), "deploy completed")
+        );
+
+        assertTrue(exception.getMessage().contains("telegram"));
+        assertEquals(List.of(), slack.messages());
+        assertEquals(List.of(), discord.messages());
+    }
+
     private static final class RecordingChannel implements NotifyChannel {
         private final List<NotifyMessage> messages = new ArrayList<>();
+        private final String name;
+
+        private RecordingChannel() {
+            this("recording");
+        }
+
+        private RecordingChannel(String name) {
+            this.name = name;
+        }
 
         @Override
         public String name() {
-            return "recording";
+            return name;
         }
 
         @Override

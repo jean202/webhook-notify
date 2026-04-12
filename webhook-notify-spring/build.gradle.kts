@@ -15,5 +15,6 @@ dependencies {
     testImplementation("org.springframework:spring-test:6.2.3")
     testImplementation("org.springframework.boot:spring-boot-autoconfigure:3.4.3")
     testImplementation("org.springframework.boot:spring-boot-test:3.4.3")
+    testImplementation("org.assertj:assertj-core:3.27.3")
     testImplementation(project(":webhook-notify-test"))
 }

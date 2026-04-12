@@ -1,6 +1,7 @@
 package com.jean202.webhooknotify.spring;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.jean202.webhooknotify.core.WebhookNotifier;
@@ -10,8 +11,12 @@ import org.springframework.aop.aspectj.annotation.AspectJProxyFactory;
 
 class NotifyAspectTest {
 
-    private final FakeChannel fakeChannel = new FakeChannel();
-    private final WebhookNotifier notifier = WebhookNotifier.builder().channel(fakeChannel).build();
+    private final FakeChannel slackChannel = new FakeChannel("slack");
+    private final FakeChannel discordChannel = new FakeChannel("discord");
+    private final WebhookNotifier notifier = WebhookNotifier.builder()
+        .channel(slackChannel)
+        .channel(discordChannel)
+        .build();
     private final NotifyAspect aspect = new NotifyAspect(notifier);
 
     private <T> T proxy(T target) {
@@ -25,8 +30,10 @@ class NotifyAspectTest {
         SampleService service = proxy(new SampleService());
         service.simple();
 
-        assertEquals(1, fakeChannel.sentMessages().size());
-        assertEquals("hello", fakeChannel.sentMessages().get(0).body());
+        assertEquals(1, slackChannel.sentMessages().size());
+        assertEquals(1, discordChannel.sentMessages().size());
+        assertEquals("hello", slackChannel.sentMessages().get(0).body());
+        assertEquals("hello", discordChannel.sentMessages().get(0).body());
     }
 
     @Test
@@ -34,8 +41,10 @@ class NotifyAspectTest {
         SampleService service = proxy(new SampleService());
         service.withTemplate();
 
-        assertEquals(1, fakeChannel.sentMessages().size());
-        assertEquals("order 42 completed", fakeChannel.sentMessages().get(0).body());
+        assertEquals(1, slackChannel.sentMessages().size());
+        assertEquals(1, discordChannel.sentMessages().size());
+        assertEquals("order 42 completed", slackChannel.sentMessages().get(0).body());
+        assertEquals("order 42 completed", discordChannel.sentMessages().get(0).body());
     }
 
     @Test
@@ -43,7 +52,8 @@ class NotifyAspectTest {
         SampleService service = proxy(new SampleService());
         service.conditionFalse();
 
-        assertTrue(fakeChannel.sentMessages().isEmpty());
+        assertTrue(slackChannel.sentMessages().isEmpty());
+        assertTrue(discordChannel.sentMessages().isEmpty());
     }
 
     @Test
@@ -51,7 +61,40 @@ class NotifyAspectTest {
         SampleService service = proxy(new SampleService());
         service.conditionTrue();
 
-        assertEquals(1, fakeChannel.sentMessages().size());
+        assertEquals(1, slackChannel.sentMessages().size());
+        assertEquals(1, discordChannel.sentMessages().size());
+    }
+
+    @Test
+    void sendsNotificationOnlyToSelectedChannel() {
+        SampleService service = proxy(new SampleService());
+        service.discordOnly();
+
+        assertTrue(slackChannel.sentMessages().isEmpty());
+        assertEquals(1, discordChannel.sentMessages().size());
+        assertEquals("discord only", discordChannel.sentMessages().get(0).body());
+    }
+
+    @Test
+    void sendsNotificationToCommaSeparatedChannels() {
+        SampleService service = proxy(new SampleService());
+        service.selectedChannels();
+
+        assertEquals(1, slackChannel.sentMessages().size());
+        assertEquals(1, discordChannel.sentMessages().size());
+        assertEquals("selected channels", slackChannel.sentMessages().get(0).body());
+        assertEquals("selected channels", discordChannel.sentMessages().get(0).body());
+    }
+
+    @Test
+    void rejectsUnknownSelectedChannel() {
+        SampleService service = proxy(new SampleService());
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, service::unknownChannel);
+
+        assertTrue(exception.getMessage().contains("telegram"));
+        assertTrue(slackChannel.sentMessages().isEmpty());
+        assertTrue(discordChannel.sentMessages().isEmpty());
     }
 
     public static class SampleService {
@@ -73,6 +116,21 @@ class NotifyAspectTest {
         @Notify(condition = "result.amount > 100", template = "big order: #{result.amount}")
         public Order conditionTrue() {
             return new Order(500);
+        }
+
+        @Notify(channel = "discord", template = "discord only")
+        public String discordOnly() {
+            return "ignored";
+        }
+
+        @Notify(channel = " discord, slack ", template = "selected channels")
+        public String selectedChannels() {
+            return "ignored";
+        }
+
+        @Notify(channel = "telegram", template = "unknown")
+        public String unknownChannel() {
+            return "ignored";
         }
     }
 

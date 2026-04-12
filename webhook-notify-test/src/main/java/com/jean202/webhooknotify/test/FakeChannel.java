@@ -7,10 +7,19 @@ import java.util.List;
 
 public class FakeChannel implements NotifyChannel {
     private final List<NotifyMessage> sentMessages = new ArrayList<>();
+    private final String name;
+
+    public FakeChannel() {
+        this("fake");
+    }
+
+    public FakeChannel(String name) {
+        this.name = name;
+    }
 
     @Override
     public String name() {
-        return "fake";
+        return name;
     }
 
     @Override
