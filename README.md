@@ -7,6 +7,7 @@ Spring 애플리케이션이나 순수 Java 애플리케이션에서 웹훅 알�
 - `webhook-notify-core`: 사용 가능
   - `NotifyChannel`, `NotifyMessage`, `WebhookNotifier`
   - Slack Incoming Webhook 실제 HTTP 전송
+  - 채널별 요청 timeout (`SlackChannel`/`DiscordChannel` 3-arg 생성자, `Builder.slack(url, timeout)`)
   - Discord Webhook 전송 (body-only → content, titled → embed)
   - `TemplateRenderer`와 `NotifyMessage.template(...)` 기반 치환
   - `NotifyCondition`과 `WebhookNotifier.when(...)` 조건부 발송
@@ -87,6 +88,29 @@ notifier.when(
     Map.of("result", result)
 ).send("급등 알림");
 ```
+
+## 요청 timeout
+
+`send`는 동기 블로킹 호출입니다. `HttpClient`의 connect timeout은 연결 수립까지만
+제한하므로, 웹훅이 연결은 받아놓고 응답하지 않으면 호출 스레드가 무한정 묶입니다.
+요청 timeout을 주면 전체 요청/응답 구간이 제한됩니다.
+
+```java
+SlackChannel channel = new SlackChannel(
+    "https://hooks.slack.com/services/xxx",
+    HttpClient.newHttpClient(),
+    Duration.ofSeconds(3)
+);
+
+WebhookNotifier notifier = WebhookNotifier.builder()
+    .slack("https://hooks.slack.com/services/xxx", Duration.ofSeconds(3))
+    .discord("https://discord.com/api/webhooks/xxx", Duration.ofSeconds(3))
+    .build();
+```
+
+timeout이 걸리면 `IllegalStateException`이 발생하고, `getCause()`는
+`java.net.http.HttpTimeoutException`입니다. 값을 주지 않으면 기존과 동일하게
+제한 없이 동작합니다.
 
 ## 개발 환경
 

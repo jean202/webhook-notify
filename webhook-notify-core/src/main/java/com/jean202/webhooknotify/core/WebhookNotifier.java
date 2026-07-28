@@ -2,6 +2,8 @@ package com.jean202.webhooknotify.core;
 
 import com.jean202.webhooknotify.core.channel.DiscordChannel;
 import com.jean202.webhooknotify.core.channel.SlackChannel;
+import java.net.http.HttpClient;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -131,8 +133,18 @@ public final class WebhookNotifier {
             return this;
         }
 
+        public Builder slack(String webhookUrl, Duration requestTimeout) {
+            channels.add(new SlackChannel(webhookUrl, HttpClient.newHttpClient(), requestTimeout));
+            return this;
+        }
+
         public Builder discord(String webhookUrl) {
             channels.add(new DiscordChannel(webhookUrl));
+            return this;
+        }
+
+        public Builder discord(String webhookUrl, Duration requestTimeout) {
+            channels.add(new DiscordChannel(webhookUrl, HttpClient.newHttpClient(), requestTimeout));
             return this;
         }
 

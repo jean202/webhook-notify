@@ -7,20 +7,34 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Objects;
 
 public final class SlackChannel implements NotifyChannel {
     private final URI webhookUri;
     private final HttpClient httpClient;
+    private final Duration requestTimeout;
 
     public SlackChannel(String webhookUrl) {
         this(webhookUrl, HttpClient.newHttpClient());
     }
 
     public SlackChannel(String webhookUrl, HttpClient httpClient) {
+        this(webhookUrl, httpClient, null);
+    }
+
+    /**
+     * @param requestTimeout bounds the whole request/response exchange. An {@link HttpClient}
+     *     connect timeout only covers establishing the connection, so without this a webhook
+     *     that accepts the connection but never answers blocks the calling thread forever.
+     *     Pass {@code null} to leave the exchange unbounded.
+     */
+    public SlackChannel(String webhookUrl, HttpClient httpClient, Duration requestTimeout) {
         this.webhookUri = URI.create(requireNonBlank(webhookUrl, "webhookUrl"));
         this.httpClient = Objects.requireNonNull(httpClient, "httpClient");
+        this.requestTimeout = requirePositiveOrNull(requestTimeout, "requestTimeout");
     }
 
     @Override
@@ -32,10 +46,13 @@ public final class SlackChannel implements NotifyChannel {
     public void send(NotifyMessage message) {
         Objects.requireNonNull(message, "message");
 
-        HttpRequest request = HttpRequest.newBuilder(webhookUri)
+        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(webhookUri)
             .header("Content-Type", "application/json; charset=UTF-8")
-            .POST(HttpRequest.BodyPublishers.ofString(toPayload(message), StandardCharsets.UTF_8))
-            .build();
+            .POST(HttpRequest.BodyPublishers.ofString(toPayload(message), StandardCharsets.UTF_8));
+        if (requestTimeout != null) {
+            requestBuilder.timeout(requestTimeout);
+        }
+        HttpRequest request = requestBuilder.build();
 
         HttpResponse<String> response;
         try {
@@ -43,6 +60,10 @@ public final class SlackChannel implements NotifyChannel {
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Interrupted while sending Slack notification", exception);
+        } catch (HttpTimeoutException exception) {
+            throw new IllegalStateException(
+                "Timed out sending Slack notification after " + requestTimeout, exception
+            );
         } catch (IOException exception) {
             throw new IllegalStateException("Failed to send Slack notification", exception);
         }
@@ -96,6 +117,16 @@ public final class SlackChannel implements NotifyChannel {
             }
         }
         return escaped.toString();
+    }
+
+    private static Duration requirePositiveOrNull(Duration value, String fieldName) {
+        if (value == null) {
+            return null;
+        }
+        if (value.isZero() || value.isNegative()) {
+            throw new IllegalArgumentException(fieldName + " must be positive");
+        }
+        return value;
     }
 
     private static String requireNonBlank(String value, String fieldName) {
