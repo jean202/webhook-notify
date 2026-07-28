@@ -17,15 +17,48 @@ Spring 애플리케이션이나 순수 Java 애플리케이션에서 웹훅 알�
   - `NotifyAutoConfiguration` — `webhook-notify.slack.webhook-url`, `webhook-notify.discord.webhook-url` 프로퍼티 자동 설정
   - `NotifyAspect` — Spring AOP 인터셉터
 
-## 빠른 예제
+## 설치
 
-현재는 Maven Central 배포 전 단계라 저장소 내부 모듈 기준으로 사용하는 것이 맞습니다.
+GitHub Packages에 배포됩니다. GitHub Packages는 public 패키지도 인증을 요구하므로,
+소비하는 쪽에서 `read:packages` 권한이 있는 토큰이 필요합니다.
+
+```kotlin
+repositories {
+    mavenCentral()
+    maven {
+        url = uri("https://maven.pkg.github.com/jean202/webhook-notify")
+        credentials {
+            username = providers.gradleProperty("gpr.user")
+                .orElse(providers.environmentVariable("GITHUB_ACTOR")).orNull
+            password = providers.gradleProperty("gpr.key")
+                .orElse(providers.environmentVariable("GITHUB_TOKEN")).orNull
+        }
+    }
+}
+
+dependencies {
+    implementation("io.github.jean202:webhook-notify-core:0.1.0")
+}
+```
+
+같은 저장소 안에서 모듈로 쓸 때는 아래처럼 사용합니다.
 
 ```kotlin
 dependencies {
     implementation(project(":webhook-notify-core"))
 }
 ```
+
+## 배포
+
+`Publish` workflow가 GitHub Release 발행 시 자동 실행되며, `workflow_dispatch`로 수동 실행도 가능합니다.
+버전은 release 태그(`v0.1.0` → `0.1.0`)에서 가져오고, `-PreleaseVersion=...`으로 덮어쓸 수 있습니다.
+
+Maven Central로 전환할 때는 Sonatype Central 계정과 GPG 키를 준비한 뒤
+`ORG_GRADLE_PROJECT_signingKey` / `ORG_GRADLE_PROJECT_signingPassword`를 주입하면 서명이 활성화됩니다.
+POM에는 Central 필수 메타데이터(name, description, url, license, developer, scm)가 이미 포함되어 있습니다.
+
+## 빠른 예제
 
 ```java
 WebhookNotifier notifier = WebhookNotifier.builder()
