@@ -60,6 +60,32 @@ notifier.when(
 - Java 17 toolchain
 - Gradle 멀티모듈 프로젝트
 
+## 전송 timeout과 실패 처리
+
+Slack·Discord 채널은 기본적으로 HTTP 전송 시작부터 응답 본문 수신 완료까지 **채널당 10초**를 기다립니다. 기존 생성자, 빌더의 `.slack(...)`/`.discord(...)`, Spring 자동 설정에 모두 적용됩니다. 여러 채널은 순서대로 전송하므로 이 값은 notifier 전체의 제한 시간이 아닙니다.
+
+채널별 제한 시간을 조정하려면 기존 `.channel(...)` 확장 지점을 사용합니다.
+
+```java
+import com.jean202.webhooknotify.core.WebhookNotifier;
+import com.jean202.webhooknotify.core.channel.SlackChannel;
+import java.net.http.HttpClient;
+import java.time.Duration;
+
+WebhookNotifier notifier = WebhookNotifier.builder()
+    .channel(new SlackChannel(webhookUrl, HttpClient.newHttpClient(), Duration.ofSeconds(3)))
+    .build();
+```
+
+`DiscordChannel(String, HttpClient, Duration)`도 같은 방식으로 사용합니다. timeout은 양수이며 나노초로 표현 가능한 `Duration`이어야 합니다. 주입하는 `HttpClient`는 `sendAsync`를 지원해야 합니다. Spring에서는 사용자 정의 `WebhookNotifier` 빈을 등록하면 기본 notifier 생성을 대체할 수 있습니다.
+
+- timeout과 I/O 오류는 기존처럼 `IllegalStateException`으로 전달하며, `getCause()`에 각각 `HttpTimeoutException` 또는 원래 `IOException`이 남습니다.
+- 인터럽트 시 진행 중인 HTTP 교환의 취소를 요청하고, 인터럽트 플래그를 복원하며, 원인으로 `InterruptedException`을 전달합니다.
+- HTTP 2xx 외 응답은 상태 코드와 응답 본문이 포함된 `IllegalStateException`으로 전달합니다.
+- 자동 재시도는 하지 않습니다. timeout은 원격 서버가 메시지를 처리하지 않았다는 보장이 아니므로, 재전송 시 중복 전달 가능성을 고려해야 합니다.
+
+기존 기본 생성자에서 무제한으로 대기하던 동작이 10초 제한으로 바뀌었습니다. 더 긴 응답을 기다려야 하는 사용처는 위 생성자로 제한 시간을 늘리세요.
+
 ## 문서
 
 - `docs/getting-started.md`
