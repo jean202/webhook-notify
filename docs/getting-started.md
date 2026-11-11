@@ -1,6 +1,6 @@
 # Getting Started
 
-현재 저장소에서 실제로 사용할 수 있는 범위는 `webhook-notify-core`의 Slack Incoming Webhook 전송과 `webhook-notify-test`의 테스트 지원 유틸이다.
+현재 저장소에서는 Slack·Discord HTTP 전송, 템플릿·조건식, Spring 자동 설정·AOP 연동과 테스트 지원 유틸을 사용할 수 있다.
 
 ## 전제 조건
 
@@ -12,6 +12,8 @@
 - `webhook-notify-core`
   - `WebhookNotifier` 빌더
   - `SlackChannel` 실제 HTTP 전송
+  - `DiscordChannel` 실제 HTTP 전송
+  - 채널당 기본 10초의 전송 timeout과 `Duration` 기반 사용자 설정
   - `TemplateRenderer`
   - `NotifyCondition`
   - `WebhookNotifier.when(...)`
@@ -20,7 +22,9 @@
 - `webhook-notify-test`
   - `FakeChannel`
 - `webhook-notify-spring`
-  - 현재는 어노테이션/자동설정 골격만 있고 실사용 단계는 아님
+  - webhook URL 프로퍼티 기반 자동 설정
+  - `@Notify`와 Spring AOP 연동
+  - 사용자 정의 `WebhookNotifier` 빈이 있으면 기본 notifier 생성 생략
 
 ## 기본 사용
 
@@ -51,6 +55,26 @@ notifier.when(
     Map.of("result", result)
 ).send("급등 알림");
 ```
+
+## 전송 제한 시간
+
+기본 생성자와 빌더는 Slack·Discord 각각에 10초 제한을 적용한다. 응답 헤더 이후 본문이 멈추는 경우도 제한 시간에 포함된다. notifier는 채널을 순서대로 호출하므로 전체 전송 시간은 채널 수에 따라 늘어날 수 있다.
+
+```java
+WebhookNotifier notifier = WebhookNotifier.builder()
+    .channel(new SlackChannel(
+        webhookUrl,
+        java.net.http.HttpClient.newHttpClient(),
+        java.time.Duration.ofSeconds(3)
+    ))
+    .build();
+```
+
+`DiscordChannel`도 동일한 생성자를 제공한다. `Duration`은 null이 아니고 양수이며 나노초로 표현 가능해야 한다. 사용자 정의 `HttpClient`는 `sendAsync`를 지원해야 한다.
+
+실패는 `IllegalStateException`으로 전달된다. timeout은 원인이 `HttpTimeoutException`, 연결 오류는 원래 `IOException`, 인터럽트는 `InterruptedException`이며 인터럽트 플래그는 보존된다. HTTP 오류는 예외 메시지에 상태 코드와 응답 본문이 포함된다. timeout과 인터럽트는 진행 중인 교환의 취소를 요청하지만 원격 처리가 취소됐음을 보장하지 않는다. 자동 재시도는 없다.
+
+기존 기본 생성자는 이제 무제한 대기 대신 10초 후 실패한다. 필요한 제한 시간은 위 생성자로 지정한다.
 
 ## 테스트에서 사용
 
@@ -95,6 +119,5 @@ notifier.when(condition, Map.of("result", result))
 
 ## 아직 없는 기능
 
-- Discord/Kakao 채널
-- Spring AOP 연동
+- Kakao 채널
 - Maven Central 배포 설정

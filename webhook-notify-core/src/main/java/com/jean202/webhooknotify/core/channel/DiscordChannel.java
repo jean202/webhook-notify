@@ -8,19 +8,36 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Objects;
 
 public final class DiscordChannel implements NotifyChannel {
     private final URI webhookUri;
     private final HttpClient httpClient;
+    private final long timeoutNanos;
 
     public DiscordChannel(String webhookUrl) {
         this(webhookUrl, HttpClient.newHttpClient());
     }
 
     public DiscordChannel(String webhookUrl, HttpClient httpClient) {
+        this(webhookUrl, httpClient, WebhookHttpSender.DEFAULT_TIMEOUT);
+    }
+
+    /**
+     * Creates a channel with a timeout covering HTTP delivery through receipt of the full response body.
+     * The client must support {@link HttpClient#sendAsync(HttpRequest, HttpResponse.BodyHandler)}.
+     *
+     * @param webhookUrl Discord webhook URL
+     * @param httpClient HTTP client used for delivery
+     * @param timeout positive timeout representable in nanoseconds; existing constructors use 10 seconds
+     * @throws IllegalArgumentException if timeout is non-positive or too large
+     * @throws NullPointerException if any argument is null
+     */
+    public DiscordChannel(String webhookUrl, HttpClient httpClient, Duration timeout) {
         this.webhookUri = URI.create(requireNonBlank(webhookUrl, "webhookUrl"));
         this.httpClient = Objects.requireNonNull(httpClient, "httpClient");
+        this.timeoutNanos = WebhookHttpSender.timeoutNanos(timeout);
     }
 
     @Override
@@ -33,13 +50,14 @@ public final class DiscordChannel implements NotifyChannel {
         Objects.requireNonNull(message, "message");
 
         HttpRequest request = HttpRequest.newBuilder(webhookUri)
+                .timeout(Duration.ofNanos(timeoutNanos))
                 .header("Content-Type", "application/json; charset=UTF-8")
                 .POST(HttpRequest.BodyPublishers.ofString(toPayload(message), StandardCharsets.UTF_8))
                 .build();
 
         HttpResponse<String> response;
         try {
-            response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            response = WebhookHttpSender.send(httpClient, request, timeoutNanos);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Interrupted while sending Discord notification", exception);
