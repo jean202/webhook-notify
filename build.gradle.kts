@@ -9,7 +9,7 @@ plugins {
 }
 
 group = "io.github.jean202"
-version = "0.1.0"
+version = "0.1.1"
 
 subprojects {
     apply(plugin = "java-library")
